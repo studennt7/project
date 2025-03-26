@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Функция для загрузки и анализа данных
 def load_and_analyze_data(file):
@@ -56,12 +57,20 @@ if uploaded_file is not None:
     
     if df is not None:
         # Построение графика динамики продаж
-        plt.figure(figsize=(10, 6))
-        plt.plot(df['Дата'], df['Объем продаж'], label="Объем продаж")
-        plt.xlabel('Дата')
-        plt.ylabel('Объем продаж')
-        plt.title('Динамика продаж')
+        plt.figure(figsize=(12, 6))
+        
+        # Используем seaborn для улучшения визуализации
+        sns.lineplot(x='Дата', y='Объем продаж', data=df, marker='o', color='b', label='Объем продаж')
+        
+        # Форматирование графика
+        plt.title('Динамика продаж по времени', fontsize=16)
+        plt.xlabel('Дата', fontsize=12)
+        plt.ylabel('Объем продаж', fontsize=12)
         plt.xticks(rotation=45)
+        plt.grid(True)
         plt.tight_layout()
+        
+        # Отображаем график
         st.pyplot(plt)
+
 
