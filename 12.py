@@ -16,7 +16,7 @@ def load_and_analyze_data(file):
             return f"В файле отсутствуют колонки: {', '.join(missing_columns)}", None
         
         df['Дата'] = pd.to_datetime(df['Дата'])
-        df['Выручка'] = df['Объем продаж'] * df['Цена']
+        df['Выручка'] = df['Объем продаж'] * df['Сумма']
         
         total_sales = df['Объем продаж'].sum()
         total_revenue = df['Выручка'].sum()
