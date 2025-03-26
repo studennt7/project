@@ -20,11 +20,11 @@ def load_and_analyze_data(file):
         
         total_sales = df['Объем продаж'].sum()
         total_revenue = df['Выручка'].sum()
-        avg_price = df['Цена'].mean()
+        avg_price = df['Сумма'].mean()
         
         info = f"Общий объем продаж: {total_sales:,.0f}\n" \
                f"Общая выручка: {total_revenue:,.2f} руб.\n" \
-               f"Средняя цена: {avg_price:.2f} руб."
+               f"Средняя сумма продажи: {avg_price:.2f} руб."
         
         return info, df
         
@@ -33,7 +33,7 @@ def load_and_analyze_data(file):
 
 
 # Интерфейс приложения
-st.title("Простой анализ продаж")
+st.title("Sales smart")
 
 st.markdown("""
 Загрузите Excel файл с данными о продажах. 
