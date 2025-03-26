@@ -9,7 +9,7 @@ def load_and_analyze_data(file):
         df = pd.read_excel(file)
         
         # Проверка на обязательные колонки
-        required_columns = ['Дата', 'Объем продаж', 'Вид продукта', 'Местоположение', 'Цена', 'Тип покупателя']
+        required_columns = ['Дата', 'Объем продаж', 'Вид продукта', 'Местоположение', 'Сумма', 'Тип покупателя']
         missing_columns = [col for col in required_columns if col not in df.columns]
         
         if missing_columns:
@@ -42,7 +42,7 @@ st.markdown("""
 - Объем продаж 
 - Вид продукта
 - Местоположение
-- Цена
+- Сумма
 - Тип покупателя
 """)
 
