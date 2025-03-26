@@ -58,19 +58,24 @@ if uploaded_file is not None:
     if df is not None:
         # Построение графика динамики продаж
         plt.figure(figsize=(12, 6))
-        
+
         # Используем seaborn для улучшения визуализации
         sns.lineplot(x='Дата', y='Объем продаж', data=df, marker='o', color='b', label='Объем продаж')
-        
+
         # Форматирование графика
         plt.title('Динамика продаж по времени', fontsize=16)
         plt.xlabel('Дата', fontsize=12)
         plt.ylabel('Объем продаж', fontsize=12)
-        plt.xticks(rotation=45)
+
+        # Улучшаем отображение оси X (даты)
+        plt.xticks(rotation=45, ha='right', fontsize=10)  # Поворот меток и выравнивание
+        plt.gca().xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%d-%m-%Y'))  # Формат даты
+        
+        # Снижаем плотность меток дат (если данных много)
+        plt.gca().xaxis.set_major_locator(plt.MaxNLocator(integer=True, prune='both', nbins=10))  # Уменьшаем количество меток
+        
         plt.grid(True)
         plt.tight_layout()
         
         # Отображаем график
         st.pyplot(plt)
-
-
