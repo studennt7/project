@@ -1,81 +1,122 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import plotly.express as px
+from io import BytesIO
 
-# Функция для загрузки и анализа данных
+# Function to load and analyze data
+@st.cache_data
 def load_and_analyze_data(file):
     try:
         df = pd.read_excel(file)
         
-        # Проверка на обязательные колонки
+        # Check required columns
         required_columns = ['Дата', 'Объем продаж', 'Вид продукта', 'Местоположение', 'Сумма', 'Тип покупателя']
         missing_columns = [col for col in required_columns if col not in df.columns]
         
         if missing_columns:
             return f"В файле отсутствуют колонки: {', '.join(missing_columns)}", None
         
+        # Data processing
         df['Дата'] = pd.to_datetime(df['Дата'])
         df['Выручка'] = df['Объем продаж'] * df['Сумма']
         
-        total_sales = df['Объем продаж'].sum()
-        total_revenue = df['Выручка'].sum()
-        avg_price = df['Сумма'].mean()
-        
-        info = f"Общий объем продаж: {total_sales:,.0f}\n" \
-               f"Общая выручка: {total_revenue:,.2f} руб.\n" \
-               f"Средняя сумма продажи: {avg_price:.2f} руб."
-        
-        return info, df
+        return None, df
         
     except Exception as e:
         return f"Ошибка обработки файла: {str(e)}", None
 
+# UI Layout
+st.title("📊 Sales Smart Analytics")
 
-# Интерфейс приложения
-st.title("Sales smart")
+# File upload section
+with st.expander("📁 Загрузите данные", expanded=True):
+    st.markdown("""
+    Загрузите Excel файл с данными о продажах. 
+    Необходимые колонки:
+    - Дата
+    - Объем продаж 
+    - Вид продукта
+    - Местоположение
+    - Сумма
+    - Тип покупателя
+    """)
+    
+    uploaded_file = st.file_uploader("Выберите Excel-файл", type="xlsx", label_visibility="collapsed")
 
-st.markdown("""
-Загрузите Excel файл с данными о продажах. 
-Необходимые колонки:
-- Дата
-- Объем продаж 
-- Вид продукта
-- Местоположение
-- Сумма
-- Тип покупателя
-""")
-
-# Форма загрузки файла
-uploaded_file = st.file_uploader("Загрузите Excel-файл", type="xlsx")
-
+# Main analysis section
 if uploaded_file is not None:
-    info, df = load_and_analyze_data(uploaded_file)
+    error_msg, df = load_and_analyze_data(uploaded_file)
     
-    # Выводим информацию о продажах
-    st.text(info)
-    
-    if df is not None:
-        # Построение графика динамики продаж
-        plt.figure(figsize=(12, 6))
-
-        # Используем seaborn для улучшения визуализации
-        sns.lineplot(x='Дата', y='Объем продаж', data=df, marker='o', color='b', label='Объем продаж')
-
-        # Форматирование графика
-        plt.title('Динамика продаж по времени', fontsize=16)
-        plt.xlabel('Дата', fontsize=12)
-        plt.ylabel('Объем продаж', fontsize=12)
-
-        # Улучшаем отображение оси X (даты)
-        plt.xticks(rotation=45, ha='right', fontsize=10)  # Поворот меток и выравнивание
-        plt.gca().xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%d-%m-%Y'))  # Формат даты
+    if error_msg:
+        st.error(error_msg)
+    elif df is not None:
+        # Calculate KPIs
+        total_sales = df['Объем продаж'].sum()
+        total_revenue = df['Выручка'].sum()
+        avg_price = df['Сумма'].mean()
+        unique_products = df['Вид продукта'].nunique()
         
-        # Снижаем плотность меток дат (если данных много)
-        plt.gca().xaxis.set_major_locator(plt.MaxNLocator(integer=True, prune='both', nbins=10))  # Уменьшаем количество меток
+        # Display KPIs
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Общий объем продаж", f"{total_sales:,.0f}")
+        col2.metric("Общая выручка", f"{total_revenue:,.2f} руб.")
+        col3.metric("Средняя сумма", f"{avg_price:,.2f} руб.")
+        col4.metric("Видов продуктов", unique_products)
         
-        plt.grid(True)
-        plt.tight_layout()
+        # Date range selector
+        min_date = df['Дата'].min().date()
+        max_date = df['Дата'].max().date()
+        selected_dates = st.date_input(
+            "Выберите диапазон дат",
+            value=(min_date, max_date),
+            min_value=min_date,
+            max_value=max_date
+        )
         
-        # Отображаем график
-        st.pyplot(plt)
+        # Filter data based on date selection
+        if len(selected_dates) == 2:
+            start_date, end_date = selected_dates
+            filtered_df = df[(df['Дата'].dt.date >= start_date) & (df['Дата'].dt.date <= end_date)]
+        else:
+            filtered_df = df
+        
+        # Visualization tabs
+        tab1, tab2, tab3 = st.tabs(["Динамика продаж", "Продукты", "Локации"])
+        
+        with tab1:
+            fig = px.line(
+                filtered_df, 
+                x='Дата', 
+                y='Объем продаж',
+                title='Динамика продаж',
+                labels={'Объем продаж': 'Объем продаж', 'Дата': 'Дата'}
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with tab2:
+            product_sales = filtered_df.groupby('Вид продукта')['Объем продаж'].sum().reset_index()
+            fig = px.bar(
+                product_sales,
+                x='Вид продукта',
+                y='Объем продаж',
+                title='Продажи по видам продуктов'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with tab3:
+            location_sales = filtered_df.groupby('Местоположение')['Выручка'].sum().reset_index()
+            fig = px.pie(
+                location_sales,
+                names='Местоположение',
+                values='Выручка',
+                title='Выручка по локациям'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Data export
+        st.download_button(
+            label="Скачать обработанные данные",
+            data=df.to_csv(index=False).encode('utf-8'),
+            file_name='processed_sales_data.csv',
+            mime='text/csv'
+        )
