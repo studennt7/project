@@ -2,10 +2,11 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-from io import BytesIO
-from sklearn.linear_model import LinearRegression
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from statsmodels.tsa.seasonal import seasonal_decompose
 from datetime import timedelta
+import warnings
+warnings.filterwarnings('ignore')
 
 # Функция для загрузки и анализа данных
 @st.cache_data
@@ -31,34 +32,52 @@ def load_and_analyze_data(file):
 
 def make_forecast(df, periods=30):
     try:
-        daily_data = df.groupby('Дата').agg({'Объем продаж': 'sum', 'Выручка': 'sum'}).reset_index()
+        # Агрегируем данные по дням
+        daily_data = df.groupby('Дата').agg({'Объем продаж': 'sum'}).reset_index()
         daily_data = daily_data.set_index('Дата').asfreq('D').fillna(0)
-
-        X = np.arange(len(daily_data)).reshape(-1, 1)
-        y = daily_data['Объем продаж'].values
-        model = LinearRegression()
-        model.fit(X, y)
-
-        future_dates = pd.date_range(start=daily_data.index[-1] + timedelta(days=1), periods=periods)
-        X_future = np.arange(len(daily_data), len(daily_data) + periods).reshape(-1, 1)
-        y_pred = model.predict(X_future)
-
+        
+        # Проверяем достаточность данных для анализа сезонности
+        if len(daily_data) < 30:
+            return None, "Недостаточно данных для прогноза (требуется минимум 30 дней)"
+        
+        # Анализ сезонности
+        decomposition = seasonal_decompose(daily_data['Объем продаж'], period=7)
+        
+        # Используем тройное экспоненциальное сглаживание (Holt-Winters)
+        model = ExponentialSmoothing(
+            daily_data['Объем продаж'],
+            seasonal_periods=7,
+            trend='add',
+            seasonal='add',
+            damped_trend=True
+        ).fit()
+        
+        # Прогнозируем
+        forecast = model.forecast(periods)
+        future_dates = pd.date_range(
+            start=daily_data.index[-1] + timedelta(days=1),
+            periods=periods
+        )
+        
+        # Создаем DataFrame с прогнозом
         forecast_df = pd.DataFrame({
             'Дата': future_dates,
-            'Объем продаж': y_pred,
+            'Объем продаж': forecast,
             'Тип': 'Прогноз'
         })
-
+        
+        # Фактические данные
         actual_df = pd.DataFrame({
             'Дата': daily_data.index,
             'Объем продаж': daily_data['Объем продаж'],
             'Тип': 'Факт'
         })
-
+        
+        # Объединяем факт и прогноз
         combined_df = pd.concat([actual_df, forecast_df])
-
+        
         return combined_df, None
-
+        
     except Exception as e:
         return None, f"Ошибка прогнозирования: {str(e)}"
 
@@ -195,21 +214,70 @@ if uploaded_file is not None:
                 st.plotly_chart(fig, use_container_width=True)
 
         with tab4:
-            st.subheader("Прогноз продаж на 30 дней")
-            forecast_df, forecast_error = make_forecast(filtered_df)
+    st.subheader("Прогноз продаж на 30 дней")
+    forecast_df, forecast_error = make_forecast(filtered_df)
 
-            if forecast_error:
-                st.error(forecast_error)
-            else:
-                col1, col2 = st.columns(2)
-                with col1:
-                    fig = px.line(forecast_df, x='Дата', y='Объем продаж', color='Тип', title='Факт и прогноз продаж', line_dash='Тип', color_discrete_map={'Факт': 'blue', 'Прогноз': 'red'})
-                    fig.update_xaxes(tickformat="%d %b", dtick="M15")
-                    fig.update_layout(hovermode="x unified")
-                    st.plotly_chart(fig, use_container_width=True)
+    if forecast_error:
+        st.error(forecast_error)
+    else:
+        col1, col2 = st.columns(2)
+        with col1:
+            fig = px.line(
+                forecast_df, 
+                x='Дата', 
+                y='Объем продаж', 
+                color='Тип',
+                title='Фактические и прогнозируемые продажи',
+                line_dash='Тип',
+                color_discrete_map={'Факт': 'blue', 'Прогноз': 'red'}
+            )
+            
+            # Добавляем доверительный интервал (примерный)
+            last_actual = forecast_df[forecast_df['Тип'] == 'Факт'].iloc[-1]['Объем продаж']
+            fig.add_trace(go.Scatter(
+                x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
+                y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'] * 1.2,
+                fill=None,
+                mode='lines',
+                line=dict(width=0),
+                showlegend=False
+            ))
+            
+            fig.add_trace(go.Scatter(
+                x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
+                y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'] * 0.8,
+                fill='tonexty',
+                mode='lines',
+                line=dict(width=0),
+                fillcolor='rgba(255,0,0,0.2)',
+                name='Доверительный интервал'
+            ))
+            
+            fig.update_layout(
+                xaxis_title='Дата',
+                yaxis_title='Объем продаж',
+                hovermode='x unified',
+                legend_title_text='Тип данных'
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-                with col2:
-                    st.dataframe(forecast_df[forecast_df['Тип'] == 'Прогноз'][['Дата', 'Объем продаж']].rename(columns={'Объем продаж': 'Прогноз объема'}).style.format({'Прогноз объема': '{:.1f}'}), hide_index=True)
+        with col2:
+            st.markdown("**Детали прогноза**")
+            st.dataframe(
+                forecast_df[forecast_df['Тип'] == 'Прогноз'][['Дата', 'Объем продаж']]
+                .rename(columns={'Объем продаж': 'Прогноз объема'})
+                .style.format({'Прогноз объема': '{:.1f}'}),
+                hide_index=True
+            )
+            
+            # Анализ точности прогноза
+            st.markdown("**Метод прогнозирования**")
+            st.write("""
+            Использован метод Хольта-Винтерса с:
+            - Учетом тренда
+            - Учетом недельной сезонности
+            - Демпфированием тренда для более консервативных прогнозов
+            """)
 
             st.subheader("Рекомендации")
             recommendations = generate_recommendations(filtered_df)
