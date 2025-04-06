@@ -7,3 +7,5 @@ scikit-learn
 seaborn
 openpyxl
 statsmodels
+fpdf2
+Pillow
