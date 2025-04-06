@@ -11,7 +11,7 @@ warnings.filterwarnings('ignore')
 
 # Настройки страницы
 st.set_page_config(
-    page_title="Sales Analytics Pro",
+    page_title="Sales-smart",
     page_icon="📊",
     layout="wide"
 )
@@ -116,7 +116,7 @@ def generate_recommendations(df):
     return recommendations if recommendations else ["🔎 Недостаточно данных для рекомендаций"]
 
 # Интерфейс приложения
-st.title("📈 Sales Analytics Pro")
+st.title("📈 Sales-smart")
 
 # Загрузка данных
 with st.expander("📁 Загрузить данные", expanded=True):
