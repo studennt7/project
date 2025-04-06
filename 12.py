@@ -320,14 +320,6 @@ if uploaded_file:
                         .style.format({'Прогноз': '{:,.0f}'}),
                         hide_index=True
                     )
-                    
-                    st.markdown("**Метод прогнозирования**")
-                    st.info("""
-                    Использован метод Хольта-Винтерса:
-                    - Учет тренда
-                    - Учет недельной сезонности
-                    - Демпфирование тренда
-                    """)
             
             st.subheader("Рекомендации")
             recommendations = generate_recommendations(filtered_df)
