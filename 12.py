@@ -12,14 +12,14 @@ import os
 import warnings
 warnings.filterwarnings('ignore')
 
-# Настройки страницы с кастомным дизайном
+# Настройки страницы
 st.set_page_config(
     page_title="Sales Analytics Pro",
     page_icon="📊",
     layout="wide"
 )
 
-# Кастомные стили
+# Стилизация
 st.markdown("""
 <style>
 .stApp {
@@ -112,7 +112,7 @@ def load_and_analyze_data(file):
     except Exception as e:
         return f"Ошибка загрузки: {str(e)}", None
 
-# Улучшенная функция прогнозирования
+# Функция прогнозирования
 def make_forecast(df, periods=30):
     try:
         daily_data = df.groupby('Дата').agg({'Объем продаж': 'sum'}).reset_index()
@@ -186,41 +186,37 @@ def generate_recommendations(df):
         best_loc = location_stats.idxmax()
         worst_loc = location_stats.idxmin()
         recommendations.append(
-            f"📍 Лучшая локация: {best_loc} (показывает наивысшие результаты), проблемная: {worst_loc}. Рекомендуется изучить причины различий."
+            f"📍 Лучшая локация: {best_loc}, проблемная: {worst_loc}. Изучите причины различий."
         )
     
     return recommendations if recommendations else ["🔎 Недостаточно данных для формирования рекомендаций"]
 
-# Основной интерфейс приложения
+# Основной интерфейс
 st.title("📈 Sales Analytics Pro")
 
-# Панель загрузки данных с подробными инструкциями
+# Панель загрузки данных
 with st.expander("📁 Загрузить данные", expanded=True):
     st.markdown("""
-    **Требования к входному файлу:**
-    
+    **Требования к файлу данных:**
     - Формат: Excel (.xlsx)
     - Обязательные колонки:
-        - `Дата` - дата продажи (формат: ГГГГ-ММ-ДД)
-        - `Объем продаж` - количество проданных единиц (число)
-        - `Вид продукта` - категория/название продукта (текст)
-        - `Местоположение` - место совершения продажи (текст)
-        - `Сумма` - цена за единицу (число)
-        - `Тип покупателя` - категория покупателя (текст)
+        - `Дата` (ГГГГ-ММ-ДД)
+        - `Объем продаж` (число)
+        - `Вид продукта` (текст)
+        - `Местоположение` (текст)
+        - `Сумма` (число)
+        - `Тип покупателя` (текст)
     
-    **Пример структуры данных:**
-    
-    | Дата       | Объем продаж | Вид продукта | Местоположение | Сумма | Тип покупателя |
-    |------------|--------------|--------------|----------------|-------|----------------|
-    | 2023-01-01 | 15           | Продукт А    | Москва         | 100   | Розница        |
-    | 2023-01-01 | 8            | Продукт Б    | Санкт-Петербург| 150   | Опт            |
+    **Пример данных:**
+    | Дата       | Объем | Продукт | Локация   | Сумма | Тип покупателя |
+    |------------|-------|---------|-----------|-------|----------------|
+    | 2023-01-01 | 10    | A       | Москва    | 100   | Розница        |
     """)
     
     uploaded_file = st.file_uploader(
-        "Выберите файл с данными о продажах",
+        "Выберите файл с данными",
         type="xlsx",
-        help="Загрузите файл в формате Excel с указанными колонками",
-        label_visibility="collapsed"
+        help="Загрузите файл в формате Excel с указанными колонками"
     )
 
 if uploaded_file:
@@ -235,10 +231,11 @@ if uploaded_file:
         avg_price = df['Сумма'].mean()
         unique_products = df['Вид продукта'].nunique()
         
-        kpi_text = f"Общий объем продаж: {total_sales:,.0f}\n" \
-                  f"Общая выручка: {total_revenue:,.2f} руб.\n" \
-                  f"Средняя цена: {avg_price:.2f} руб.\n" \
-                  f"Количество видов продуктов: {unique_products}"
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Общий объем", f"{total_sales:,.0f}")
+        col2.metric("Выручка", f"{total_revenue:,.2f} руб.")
+        col3.metric("Средний чек", f"{avg_price:.2f} руб.")
+        col4.metric("Кол-во продуктов", unique_products)
         
         # Фильтры
         st.sidebar.header("🔍 Фильтры")
@@ -253,13 +250,13 @@ if uploaded_file:
         )
         
         products = st.sidebar.multiselect(
-            "Выберите продукты",
+            "Продукты",
             options=df['Вид продукта'].unique(),
             default=df['Вид продукта'].unique()
         )
         
         locations = st.sidebar.multiselect(
-            "Выберите локации",
+            "Локации",
             options=df['Местоположение'].unique(),
             default=df['Местоположение'].unique()
         )
@@ -282,27 +279,20 @@ if uploaded_file:
         # Визуализации
         tab1, tab2, tab3, tab4 = st.tabs(["📈 Динамика", "🛍️ Продукты", "🏢 Локации", "🔮 Прогноз"])
         
-        figures_for_pdf = []  # Для сохранения графиков в PDF
+        figures_for_pdf = []
         
         with tab1:
-            st.markdown("### Динамика продаж по дням")
+            st.markdown("### Динамика продаж")
             fig1 = px.line(
                 filtered_df.groupby('Дата').agg({'Объем продаж': 'sum'}).reset_index(),
                 x='Дата',
                 y='Объем продаж',
-                labels={'Объем продаж': 'Объем продаж', 'Дата': 'Дата'},
                 template='plotly_white'
             )
             fig1.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                hovermode="x unified",
-                xaxis=dict(
-                    tickformat="%d %b",
-                    gridcolor='lightgray'
-                ),
-                yaxis=dict(
-                    gridcolor='lightgray'
-                )
+                xaxis_title='Дата',
+                yaxis_title='Объем продаж',
+                hovermode="x unified"
             )
             st.plotly_chart(fig1, use_container_width=True)
             figures_for_pdf.append(fig1)
@@ -316,13 +306,7 @@ if uploaded_file:
                     filtered_df.groupby('Вид продукта')['Объем продаж'].sum().reset_index(),
                     x='Вид продукта',
                     y='Объем продаж',
-                    color='Вид продукта',
-                    labels={'Объем продаж': 'Объем продаж', 'Вид продукта': 'Продукт'},
-                    template='plotly_white'
-                )
-                fig2.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    showlegend=False
+                    color='Вид продукта'
                 )
                 st.plotly_chart(fig2, use_container_width=True)
                 figures_for_pdf.append(fig2)
@@ -337,19 +321,7 @@ if uploaded_file:
                     y='Объем продаж',
                     size='Объем продаж',
                     color='Вид продукта',
-                    labels={'Сумма': 'Средняя цена', 'Объем продаж': 'Общий объем продаж'},
-                    template='plotly_white',
                     hover_name='Вид продукта'
-                )
-                fig3.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    legend=dict(
-                        orientation="h",
-                        yanchor="bottom",
-                        y=1.02,
-                        xanchor="right",
-                        x=1
-                    )
                 )
                 st.plotly_chart(fig3, use_container_width=True)
                 figures_for_pdf.append(fig3)
@@ -363,17 +335,15 @@ if uploaded_file:
                     filtered_df.groupby('Местоположение')['Выручка'].sum().reset_index(),
                     names='Местоположение',
                     values='Выручка',
-                    hole=0.3,
-                    labels={'Выручка': 'Выручка', 'Местоположение': 'Локация'},
-                    template='plotly_white'
+                    hole=0.3
                 )
                 st.plotly_chart(fig4, use_container_width=True)
                 figures_for_pdf.append(fig4)
             
             with col2:
-                # Улучшенный график динамики по локациям
+                # Улучшенный график по локациям
                 location_weekly = filtered_df.groupby([
-                    'Местоположение',
+                    'Местоположение', 
                     pd.Grouper(key='Дата', freq='W-MON')
                 ])['Объем продаж'].sum().reset_index()
                 
@@ -384,20 +354,13 @@ if uploaded_file:
                     color='Местоположение',
                     facet_col='Местоположение',
                     facet_col_wrap=2,
-                    height=600,
-                    labels={'Объем продаж': 'Продажи (недельные)', 'Дата': 'Дата'},
-                    template='plotly_white'
+                    height=600
                 )
-                fig5.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    showlegend=False
-                )
-                fig5.update_xaxes(tickformat="%d %b")
                 st.plotly_chart(fig5, use_container_width=True)
                 figures_for_pdf.append(fig5)
         
         with tab4:
-            st.markdown("### Прогноз продаж на 30 дней")
+            st.markdown("### Прогноз продаж")
             forecast_df, forecast_error = make_forecast(filtered_df)
             
             if forecast_error:
@@ -412,9 +375,9 @@ if uploaded_file:
                     fig6.add_trace(go.Scatter(
                         x=forecast_df[forecast_df['Тип'] == 'Факт']['Дата'],
                         y=forecast_df[forecast_df['Тип'] == 'Факт']['Объем продаж'],
-                        name='Фактические данные',
+                        name='Факт',
                         line=dict(color='#3498db')
-                    )
+                    ))
                     
                     # Прогноз
                     fig6.add_trace(go.Scatter(
@@ -422,7 +385,7 @@ if uploaded_file:
                         y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'],
                         name='Прогноз',
                         line=dict(color='#e74c3c', dash='dash')
-                    )
+                    ))
                     
                     # Доверительный интервал
                     fig6.add_trace(go.Scatter(
@@ -441,22 +404,14 @@ if uploaded_file:
                         mode='lines',
                         line=dict(width=0),
                         fillcolor='rgba(231, 76, 60, 0.1)',
-                        name='Доверительный интервал (±15%)'
+                        name='Доверительный интервал'
                     ))
                     
                     fig6.update_layout(
                         title='Прогноз продаж с учетом сезонности',
                         xaxis_title='Дата',
                         yaxis_title='Объем продаж',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        hovermode='x unified',
-                        legend=dict(
-                            orientation="h",
-                            yanchor="bottom",
-                            y=1.02,
-                            xanchor="right",
-                            x=1
-                        )
+                        hovermode='x unified'
                     )
                     st.plotly_chart(fig6, use_container_width=True)
                     figures_for_pdf.append(fig6)
@@ -469,14 +424,6 @@ if uploaded_file:
                         .style.format({'Прогноз': '{:,.0f}'}),
                         height=400
                     )
-                    
-                    st.markdown("**Метод прогнозирования**")
-                    st.info("""
-                    Использован метод Хольта-Винтерса:
-                    - Учет тренда
-                    - Учет недельной сезонности
-                    - Демпфирование тренда
-                    """)
             
             st.markdown("### Рекомендации")
             recommendations = generate_recommendations(filtered_df)
@@ -485,19 +432,19 @@ if uploaded_file:
         
         # Экспорт данных
         st.sidebar.markdown("---")
-        st.sidebar.header("Экспорт данных")
+        st.sidebar.header("📤 Экспорт")
         
-        # CSV экспорт
+        # CSV
         csv = filtered_df.to_csv(index=False).encode('utf-8')
         st.sidebar.download_button(
-            label="Скачать данные (CSV)",
+            label="Скачать CSV",
             data=csv,
             file_name="sales_data.csv",
             mime="text/csv"
         )
         
-        # PDF экспорт
-        if st.sidebar.button("Сгенерировать PDF отчет"):
+        # PDF
+        if st.sidebar.button("Создать PDF отчет"):
             with st.spinner("Формирование отчета..."):
                 pdf_path = create_pdf_report(
                     filtered_df,
@@ -510,7 +457,7 @@ if uploaded_file:
                     pdf_bytes = f.read()
                 
                 st.sidebar.download_button(
-                    label="Скачать PDF отчет",
+                    label="Скачать PDF",
                     data=pdf_bytes,
                     file_name="sales_report.pdf",
                     mime="application/pdf"
