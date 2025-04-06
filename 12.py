@@ -6,9 +6,6 @@ from io import BytesIO
 from sklearn.linear_model import LinearRegression
 from statsmodels.tsa.seasonal import seasonal_decompose
 from datetime import timedelta
-from fpdf import FPDF
-import tempfile
-import os
 
 # Функция для загрузки и анализа данных
 @st.cache_data
@@ -104,32 +101,6 @@ def generate_recommendations(df):
 
     return recommendations if recommendations else ["🔎 Недостаточно данных для формирования рекомендаций"]
 
-# Функция для генерации PDF отчета
-
-def generate_pdf_report(df, recommendations):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.add_font("DejaVu", '', "DejaVuSans.ttf", uni=True)
-    pdf.set_font("DejaVu", size=12)
-
-    pdf.cell(200, 10, txt="Отчет по продажам", ln=True, align='C')
-
-    pdf.ln(10)
-    pdf.set_font("DejaVu", size=10)
-    for rec in recommendations:
-        pdf.multi_cell(0, 8, txt=rec)
-
-    pdf.ln(5)
-    pdf.set_font("DejaVu", size=9)
-    for index, row in df.head(30).iterrows():  # ограничим до 30 строк
-        text = f"{row['Дата'].strftime('%Y-%m-%d')} | {row['Вид продукта']} | {row['Объем продаж']} | {row['Сумма']} руб. | {row['Тип покупателя']}"
-        pdf.multi_cell(0, 7, txt=text)
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        pdf.output(tmp.name)
-        tmp.seek(0)
-        return tmp.read(), tmp.name
-
 # Интерфейс приложения
 st.set_page_config(page_title="Sales Smart Analytics", layout="wide")
 st.title("📊 Sales Smart Analytics")
@@ -155,10 +126,95 @@ if uploaded_file is not None:
     if error_msg:
         st.error(error_msg)
     elif df is not None:
-        ...  # оставшаяся часть кода анализа
+        total_sales = df['Объем продаж'].sum()
+        total_revenue = df['Выручка'].sum()
+        avg_price = df['Сумма'].mean()
+        unique_products = df['Вид продукта'].nunique()
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Общий объем продаж", f"{total_sales:,.0f}")
+        col2.metric("Общая выручка", f"{total_revenue:,.2f} руб.")
+        col3.metric("Средняя сумма", f"{avg_price:,.2f} руб.")
+        col4.metric("Видов продуктов", unique_products)
+
+        st.subheader("Фильтры для анализа")
+        min_date = df['Дата'].min().date()
+        max_date = df['Дата'].max().date()
+
+        col1, col2 = st.columns(2)
+        with col1:
+            selected_dates = st.date_input("Диапазон дат", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+
+        with col2:
+            selected_products = st.multiselect("Выберите продукты", options=df['Вид продукта'].unique(), default=df['Вид продукта'].unique())
+
+        if len(selected_dates) == 2:
+            start_date, end_date = selected_dates
+            filtered_df = df[(df['Дата'].dt.date >= start_date) & (df['Дата'].dt.date <= end_date) & (df['Вид продукта'].isin(selected_products))]
+        else:
+            filtered_df = df[df['Вид продукта'].isin(selected_products)]
+
+        tab1, tab2, tab3, tab4 = st.tabs(["Динамика продаж", "Анализ продуктов", "Анализ локаций", "Прогноз и рекомендации"])
+
+        with tab1:
+            fig = px.line(
+                filtered_df.groupby('Дата')['Объем продаж'].sum().reset_index(),
+                x='Дата',
+                y='Объем продаж',
+                title='Динамика продаж',
+                labels={'Объем продаж': 'Объем продаж', 'Дата': 'Дата'}
+            )
+            fig.update_xaxes(tickformat="%d %b", dtick="M15")
+            fig.update_layout(hovermode="x unified")
+            st.plotly_chart(fig, use_container_width=True)
+
+        with tab2:
+            col1, col2 = st.columns(2)
+            with col1:
+                product_sales = filtered_df.groupby('Вид продукта')['Объем продаж'].sum().reset_index()
+                fig = px.bar(product_sales, x='Вид продукта', y='Объем продаж', title='Продажи по продуктам')
+                st.plotly_chart(fig, use_container_width=True)
+
+            with col2:
+                price_analysis = filtered_df.groupby('Вид продукта').agg(avg_price=('Сумма', 'mean'), total_sales=('Объем продаж', 'sum')).reset_index()
+                fig = px.scatter(price_analysis, x='avg_price', y='total_sales', text='Вид продукта', title='Зависимость объема от цены', labels={'avg_price': 'Средняя цена', 'total_sales': 'Объем продаж'})
+                st.plotly_chart(fig, use_container_width=True)
+
+        with tab3:
+            col1, col2 = st.columns(2)
+            with col1:
+                location_sales = filtered_df.groupby('Местоположение')['Выручка'].sum().reset_index()
+                fig = px.pie(location_sales, names='Местоположение', values='Выручка', title='Распределение выручки по локациям')
+                st.plotly_chart(fig, use_container_width=True)
+
+            with col2:
+                location_trend = filtered_df.groupby(['Местоположение', 'Дата'])['Объем продаж'].sum().reset_index()
+                fig = px.line(location_trend, x='Дата', y='Объем продаж', color='Местоположение', title='Динамика продаж по локациям', labels={'Дата': 'Дата', 'Объем продаж': 'Объем продаж', 'Местоположение': 'Локация'})
+                fig.update_xaxes(tickformat="%d %b", dtick="M15", title="Дата")
+                fig.update_layout(hovermode="x unified", legend_title_text='Локация', margin=dict(t=40, b=40, l=0, r=0))
+                st.plotly_chart(fig, use_container_width=True)
+
+        with tab4:
+            st.subheader("Прогноз продаж на 30 дней")
+            forecast_df, forecast_error = make_forecast(filtered_df)
+
+            if forecast_error:
+                st.error(forecast_error)
+            else:
+                col1, col2 = st.columns(2)
+                with col1:
+                    fig = px.line(forecast_df, x='Дата', y='Объем продаж', color='Тип', title='Факт и прогноз продаж', line_dash='Тип', color_discrete_map={'Факт': 'blue', 'Прогноз': 'red'})
+                    fig.update_xaxes(tickformat="%d %b", dtick="M15")
+                    fig.update_layout(hovermode="x unified")
+                    st.plotly_chart(fig, use_container_width=True)
+
+                with col2:
+                    st.dataframe(forecast_df[forecast_df['Тип'] == 'Прогноз'][['Дата', 'Объем продаж']].rename(columns={'Объем продаж': 'Прогноз объема'}).style.format({'Прогноз объема': '{:.1f}'}), hide_index=True)
+
+            st.subheader("Рекомендации")
+            recommendations = generate_recommendations(filtered_df)
+            for rec in recommendations:
+                st.markdown(f"- {rec}")
 
         st.download_button(label="Скачать обработанные данные", data=filtered_df.to_csv(index=False).encode('utf-8'), file_name='sales_analysis.csv', mime='text/csv')
-
-        pdf_data, pdf_path = generate_pdf_report(filtered_df, recommendations)
-        st.download_button("📄 Скачать PDF отчет", data=pdf_data, file_name="sales_report.pdf", mime="application/pdf")
 
