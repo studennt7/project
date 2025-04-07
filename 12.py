@@ -7,6 +7,8 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from statsmodels.tsa.seasonal import seasonal_decompose
 from datetime import timedelta
 import warnings
+from fpdf import FPDF
+import base64
 warnings.filterwarnings('ignore')
 
 # Настройки страницы
@@ -58,6 +60,54 @@ def set_white_theme():
     )
 
 set_white_theme()
+
+# Функция для создания PDF
+def create_pdf(df, filtered_df, forecast_df, recommendations):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    
+    # Заголовок
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(200, 10, txt="Отчет по продажам", ln=1, align='C')
+    pdf.ln(10)
+    
+    # Основные метрики
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(200, 10, txt="Ключевые показатели", ln=1)
+    pdf.set_font("Arial", size=12)
+    
+    total_sales = filtered_df['Объем продаж'].sum()
+    total_revenue = filtered_df['Выручка'].sum()
+    avg_price = filtered_df['Сумма'].mean()
+    unique_products = filtered_df['Вид продукта'].nunique()
+    
+    pdf.cell(200, 10, txt=f"Общий объем продаж: {total_sales:,.0f}", ln=1)
+    pdf.cell(200, 10, txt=f"Общая выручка: {total_revenue:,.2f} руб.", ln=1)
+    pdf.cell(200, 10, txt=f"Средний чек: {avg_price:.2f} руб.", ln=1)
+    pdf.cell(200, 10, txt=f"Количество продуктов: {unique_products}", ln=1)
+    pdf.ln(10)
+    
+    # Рекомендации
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(200, 10, txt="Рекомендации", ln=1)
+    pdf.set_font("Arial", size=12)
+    
+    for rec in recommendations:
+        pdf.cell(200, 10, txt=f"- {rec.replace('📌', '').strip()}", ln=1)
+    
+    # Прогноз
+    if forecast_df is not None:
+        pdf.ln(10)
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(200, 10, txt="Прогноз продаж", ln=1)
+        pdf.set_font("Arial", size=12)
+        
+        forecast_values = forecast_df[forecast_df['Тип'] == 'Прогноз']
+        for index, row in forecast_values.iterrows():
+            pdf.cell(200, 10, txt=f"{row['Дата'].strftime('%Y-%m-%d')}: {row['Объем продаж']:,.0f}", ln=1)
+    
+    return pdf.output(dest='S').encode('latin1')
 
 # Функция загрузки данных
 @st.cache_data
@@ -130,7 +180,7 @@ def generate_recommendations(df):
         
         if decomposition.seasonal.std() > (daily_sales.mean() * 0.1):
             recommendations.append(
-                "🔍 Выявлена недельная сезонность. Оптимизируйте запасы и персонал соответственно."
+                "Выявлена недельная сезонность. Оптимизируйте запасы и персонал соответственно."
             )
     except:
         pass
@@ -138,14 +188,14 @@ def generate_recommendations(df):
     top_products = df.groupby('Вид продукта')['Объем продаж'].sum().nlargest(3)
     if len(top_products) > 0:
         recommendations.append(
-            f"🏆 Топ-3 продукта: {', '.join(top_products.index)}. Увеличьте их наличие."
+            f"Топ-3 продукта: {', '.join(top_products.index)}. Увеличьте их наличие."
         )
     
     customer_stats = df.groupby('Тип покупателя')['Выручка'].agg(['sum', 'count'])
     if len(customer_stats) > 1:
         best_customer = customer_stats['sum'].idxmax()
         recommendations.append(
-            f"👥 Основная выручка от '{best_customer}'. Разработайте программу лояльности."
+            f"Основная выручка от '{best_customer}'. Разработайте программу лояльности."
         )
     
     location_stats = df.groupby('Местоположение')['Выручка'].sum()
@@ -153,20 +203,33 @@ def generate_recommendations(df):
         best_loc = location_stats.idxmax()
         worst_loc = location_stats.idxmin()
         recommendations.append(
-            f"📍 Лучшая локация: {best_loc}, проблемная: {worst_loc}. Изучите причины."
+            f"Лучшая локация: {best_loc}, проблемная: {worst_loc}. Изучите причины."
         )
     
-    return recommendations if recommendations else ["🔎 Недостаточно данных для рекомендаций"]
+    return recommendations if recommendations else ["Недостаточно данных для рекомендаций"]
 
 # Интерфейс приложения
-st.title("📈 Sales-smart")
+st.title("📈 Sales-smart - Аналитика продаж")
 
 # Загрузка данных
 with st.expander("📁 Загрузить данные", expanded=True):
+    st.markdown("""
+    **Требования к данным:**
+    - Файл должен быть в формате Excel (.xlsx)
+    - Обязательные колонки:
+        - `Дата` - дата продажи (формат: ДД.ММ.ГГГГ)
+        - `Объем продаж` - количество проданных единиц
+        - `Вид продукта` - категория/название продукта
+        - `Местоположение` - место продажи (филиал, город и т.д.)
+        - `Сумма` - цена за единицу товара
+        - `Тип покупателя` - категория покупателя (розница, опт и т.д.)
+    - Данные должны быть в одной вкладке (первая вкладка будет использоваться по умолчанию)
+    """)
+    
     uploaded_file = st.file_uploader(
-        "Выберите файл продаж (Excel)",
+        "Выберите файл с данными о продажах",
         type="xlsx",
-        help="Файл должен содержать колонки: Дата, Объем продаж, Вид продукта, Местоположение, Сумма, Тип покупателя"
+        help="Загрузите файл, соответствующий требованиям выше"
     )
 
 if uploaded_file:
@@ -236,7 +299,7 @@ if uploaded_file:
                 y='Объем продаж',
                 title='Динамика продаж',
                 labels={'Объем продаж': 'Объем', 'Дата': 'Дата'},
-                color_discrete_sequence=['#1f77b4']  # Синий цвет для графиков
+                color_discrete_sequence=['#1f77b4']
             )
             fig.update_xaxes(tickformat="%d %b", dtick="M1")
             fig.update_layout(
@@ -280,7 +343,7 @@ if uploaded_file:
                     y='Объем продаж',
                     size='Объем продаж',
                     color='Вид продукта',
-                    title='Объем продаж'
+                    title='Цена vs Объем продаж'
                 )
                 fig.update_layout(
                     plot_bgcolor='white',
@@ -290,34 +353,59 @@ if uploaded_file:
                 st.plotly_chart(fig, use_container_width=True)
         
         with tab3:
+            st.markdown("""
+            ### Анализ продаж по локациям
+            На графиках ниже представлено распределение выручки и динамика продаж по разным локациям.
+            Используйте эту информацию для выявления наиболее и наименее эффективных точек продаж.
+            """)
+            
             col1, col2 = st.columns(2)
             with col1:
                 fig = px.pie(
                     filtered_df.groupby('Местоположение')['Выручка'].sum().reset_index(),
                     names='Местоположение',
                     values='Выручка',
-                    title='Распределение выручки'
+                    title='Доля выручки по локациям (%)',
+                    hole=0.3
                 )
                 fig.update_layout(
                     plot_bgcolor='white',
                     paper_bgcolor='white',
-                    font=dict(color='black')
+                    font=dict(color='black'),
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=-0.2,
+                        xanchor="center",
+                        x=0.5
+                    )
                 )
+                fig.update_traces(textposition='inside', textinfo='percent+label')
                 st.plotly_chart(fig, use_container_width=True)
             
             with col2:
-                fig = px.line(
-                    filtered_df.groupby(['Местоположение', 'Дата'])['Объем продаж'].sum().reset_index(),
+                # Улучшенный график динамики по локациям
+                loc_df = filtered_df.groupby(['Местоположение', 'Дата'])['Объем продаж'].sum().reset_index()
+                
+                fig = px.area(
+                    loc_df,
                     x='Дата',
                     y='Объем продаж',
                     color='Местоположение',
-                    title='Динамика по локациям'
+                    title='Динамика продаж по локациям',
+                    facet_col='Местоположение',
+                    facet_col_wrap=2,
+                    height=600
                 )
+                
                 fig.update_layout(
                     plot_bgcolor='white',
                     paper_bgcolor='white',
-                    font=dict(color='black')
+                    font=dict(color='black'),
+                    showlegend=False
                 )
+                
+                fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
                 st.plotly_chart(fig, use_container_width=True)
         
         with tab4:
