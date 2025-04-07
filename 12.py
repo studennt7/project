@@ -280,7 +280,7 @@ if uploaded_file:
                     y='Объем продаж',
                     size='Объем продаж',
                     color='Вид продукта',
-                    title='Цена vs Объем продаж'
+                    title='Объем продаж'
                 )
                 fig.update_layout(
                     plot_bgcolor='white',
