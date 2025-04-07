@@ -430,6 +430,7 @@ if uploaded_file:
                     plot_bgcolor='white',
                     paper_bgcolor='white',
                     font=dict(color='black')
+                )
                 st.plotly_chart(fig, use_container_width=True)
             
             st.markdown("### Динамика продаж по локациям")
