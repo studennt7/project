@@ -484,7 +484,7 @@ if uploaded_file:
                         y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'],
                         name='Прогноз',
                         line=dict(color='red', dash='dot')
-                    )
+                    ))
                     
                     # Доверительный интервал
                     fig.add_trace(go.Scatter(
