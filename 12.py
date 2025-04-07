@@ -7,6 +7,9 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from statsmodels.tsa.seasonal import seasonal_decompose
 from datetime import timedelta
 import warnings
+from fpdf import FPDF
+from io import BytesIO
+import base64
 warnings.filterwarnings('ignore')
 
 # Настройки страницы
@@ -15,6 +18,28 @@ st.set_page_config(
     page_icon="📊",
     layout="wide"
 )
+
+# Настройка стилей
+st.markdown("""
+<style>
+    .main {
+        background-color: #FFFFFF;
+        color: #000000;
+    }
+    .st-bw {
+        background-color: white;
+    }
+    .st-at {
+        background-color: white;
+    }
+    .css-18e3th9 {
+        padding: 1rem 1rem 10rem;
+    }
+    h1, h2, h3, h4, h5, h6, p, div {
+        color: black !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Функция загрузки данных
 @st.cache_data
@@ -115,15 +140,131 @@ def generate_recommendations(df):
     
     return recommendations if recommendations else ["🔎 Недостаточно данных для рекомендаций"]
 
+# Функция для создания PDF отчета
+def create_pdf_report(df, forecast_df, recommendations, filtered_df):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    
+    # Заголовок
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(200, 10, txt="Аналитический отчет по продажам", ln=1, align='C')
+    pdf.ln(10)
+    
+    # Основные метрики
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(200, 10, txt="Ключевые метрики", ln=1)
+    pdf.set_font("Arial", size=12)
+    
+    total_sales = df['Объем продаж'].sum()
+    total_revenue = df['Выручка'].sum()
+    avg_price = df['Сумма'].mean()
+    unique_products = df['Вид продукта'].nunique()
+    
+    pdf.cell(200, 10, txt=f"Общий объем продаж: {total_sales:,.0f}", ln=1)
+    pdf.cell(200, 10, txt=f"Общая выручка: {total_revenue:,.2f} руб.", ln=1)
+    pdf.cell(200, 10, txt=f"Средний чек: {avg_price:.2f} руб.", ln=1)
+    pdf.cell(200, 10, txt=f"Количество уникальных продуктов: {unique_products}", ln=1)
+    pdf.ln(10)
+    
+    # Графики (сохраняем временные изображения)
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(200, 10, txt="Визуализация данных", ln=1)
+    
+    # Динамика продаж
+    fig = px.line(
+        filtered_df.groupby('Дата').agg({'Объем продаж': 'sum'}).reset_index(),
+        x='Дата',
+        y='Объем продаж',
+        title='Динамика продаж'
+    )
+    img_bytes = fig.to_image(format="png")
+    pdf.image(BytesIO(img_bytes), x=10, w=190)
+    pdf.ln(5)
+    
+    # Продукты
+    fig = px.bar(
+        filtered_df.groupby('Вид продукта')['Объем продаж'].sum().reset_index(),
+        x='Вид продукта',
+        y='Объем продаж',
+        title='Продажи по продуктам'
+    )
+    img_bytes = fig.to_image(format="png")
+    pdf.image(BytesIO(img_bytes), x=10, w=190)
+    pdf.ln(5)
+    
+    # Локации
+    fig = px.bar(
+        filtered_df.groupby('Местоположение')['Выручка'].sum().reset_index(),
+        x='Местоположение',
+        y='Выручка',
+        title='Выручка по локациям'
+    )
+    img_bytes = fig.to_image(format="png")
+    pdf.image(BytesIO(img_bytes), x=10, w=190)
+    pdf.ln(10)
+    
+    # Прогноз
+    if forecast_df is not None:
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(200, 10, txt="Прогноз продаж", ln=1)
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=forecast_df[forecast_df['Тип'] == 'Факт']['Дата'],
+            y=forecast_df[forecast_df['Тип'] == 'Факт']['Объем продаж'],
+            name='Факт',
+            line=dict(color='blue')
+        )
+        fig.add_trace(go.Scatter(
+            x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
+            y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'],
+            name='Прогноз',
+            line=dict(color='red', dash='dot')
+        )
+        img_bytes = fig.to_image(format="png")
+        pdf.image(BytesIO(img_bytes), x=10, w=190)
+        pdf.ln(5)
+    
+    # Рекомендации
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(200, 10, txt="Рекомендации", ln=1)
+    pdf.set_font("Arial", size=12)
+    
+    for rec in recommendations:
+        pdf.multi_cell(0, 10, txt=rec)
+    
+    return pdf
+
 # Интерфейс приложения
 st.title("📈 Sales-smart")
 
 # Загрузка данных
 with st.expander("📁 Загрузить данные", expanded=True):
+    st.markdown("""
+    **Требования к данным:**
+    
+    Для корректной работы приложения загружаемый файл должен соответствовать следующим требованиям:
+    
+    - Формат файла: **Excel (.xlsx)**
+    - Обязательные колонки:
+        - **Дата** - дата продажи в формате ДД.ММ.ГГГГ
+        - **Объем продаж** - количество проданных единиц (числовое значение)
+        - **Вид продукта** - наименование товара или услуги
+        - **Местоположение** - точка продажи или филиал
+        - **Сумма** - цена за единицу товара
+        - **Тип покупателя** - категория клиента (розничный, оптовый и т.д.)
+    
+    **Рекомендации:**
+    - Данные должны быть полными и актуальными
+    - Период анализа должен содержать не менее 30 дней данных
+    - Избегайте пустых значений в обязательных колонках
+    """)
+    
     uploaded_file = st.file_uploader(
         "Выберите файл продаж (Excel)",
         type="xlsx",
-        help="Файл должен содержать колонки: Дата, Объем продаж, Вид продукта, Местоположение, Сумма, Тип покупателя"
+        help="Загрузите файл, соответствующий указанным требованиям"
     )
 
 if uploaded_file:
@@ -195,7 +336,12 @@ if uploaded_file:
                 labels={'Объем продаж': 'Объем', 'Дата': 'Дата'}
             )
             fig.update_xaxes(tickformat="%d %b", dtick="M1")
-            fig.update_layout(hovermode="x unified")
+            fig.update_layout(
+                hovermode="x unified",
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                font=dict(color='black')
+            )
             st.plotly_chart(fig, use_container_width=True)
             
             st.dataframe(
@@ -211,7 +357,14 @@ if uploaded_file:
                     filtered_df.groupby('Вид продукта')['Объем продаж'].sum().reset_index(),
                     x='Вид продукта',
                     y='Объем продаж',
-                    title='Продажи по продуктам'
+                    title='Продажи по продуктам',
+                    color='Вид продукта',
+                    text_auto=True
+                )
+                fig.update_layout(
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    font=dict(color='black')
                 )
                 st.plotly_chart(fig, use_container_width=True)
             
@@ -225,112 +378,179 @@ if uploaded_file:
                     y='Объем продаж',
                     size='Объем продаж',
                     color='Вид продукта',
-                    title='Цена vs Объем продаж'
+                    title='Цена vs Объем продаж',
+                    hover_name='Вид продукта'
+                )
+                fig.update_layout(
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    font=dict(color='black')
                 )
                 st.plotly_chart(fig, use_container_width=True)
         
         with tab3:
+            st.markdown("### Анализ продаж по локациям")
+            
             col1, col2 = st.columns(2)
             with col1:
-                fig = px.pie(
-                    filtered_df.groupby('Местоположение')['Выручка'].sum().reset_index(),
-                    names='Местоположение',
-                    values='Выручка',
-                    title='Распределение выручки'
+                fig = px.bar(
+                    filtered_df.groupby('Местоположение').agg({
+                        'Объем продаж': 'sum',
+                        'Выручка': 'sum'
+                    }).reset_index(),
+                    x='Местоположение',
+                    y='Выручка',
+                    title='Выручка по локациям',
+                    color='Местоположение',
+                    text_auto='.2s'
+                )
+                fig.update_traces(
+                    textfont_size=12,
+                    textangle=0,
+                    textposition="outside"
+                )
+                fig.update_layout(
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    font=dict(color='black')
                 )
                 st.plotly_chart(fig, use_container_width=True)
             
             with col2:
-                fig = px.line(
-                    filtered_df.groupby(['Местоположение', 'Дата'])['Объем продаж'].sum().reset_index(),
-                    x='Дата',
+                fig = px.bar(
+                    filtered_df.groupby(['Местоположение', 'Вид продукта'])['Объем продаж'].sum().reset_index(),
+                    x='Местоположение',
                     y='Объем продаж',
-                    color='Местоположение',
-                    title='Динамика по локациям'
+                    color='Вид продукта',
+                    title='Распределение продаж по продуктам и локациям',
+                    barmode='stack'
+                )
+                fig.update_layout(
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    font=dict(color='black')
                 )
                 st.plotly_chart(fig, use_container_width=True)
-        
-        with tab4:
-            st.subheader("Прогноз продаж на 30 дней")
-            forecast_df, forecast_error = make_forecast(filtered_df)
             
-            if forecast_error:
-                st.warning(forecast_error)
-            else:
-                col1, col2 = st.columns([2, 1])
-                with col1:
-                    fig = go.Figure()
-                    
-                    # Фактические данные
-                    fig.add_trace(go.Scatter(
-                        x=forecast_df[forecast_df['Тип'] == 'Факт']['Дата'],
-                        y=forecast_df[forecast_df['Тип'] == 'Факт']['Объем продаж'],
-                        name='Факт',
-                        line=dict(color='blue')
-                    ))
-                    
-                    # Прогноз
-                    fig.add_trace(go.Scatter(
-                        x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
-                        y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'],
-                        name='Прогноз',
-                        line=dict(color='red', dash='dot')
-                    ))
-                    
-                    # Доверительный интервал
-                    fig.add_trace(go.Scatter(
-                        x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
-                        y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'] * 1.2,
-                        fill=None,
-                        mode='lines',
-                        line=dict(width=0),
-                        showlegend=False
-                    ))
-                    
-                    fig.add_trace(go.Scatter(
-                        x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
-                        y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'] * 0.8,
-                        fill='tonexty',
-                        mode='lines',
-                        line=dict(width=0),
-                        fillcolor='rgba(255,0,0,0.1)',
-                        name='Доверительный интервал'
-                    ))
-                    
-                    fig.update_layout(
-                        title='Прогноз продаж с учетом сезонности',
-                        xaxis_title='Дата',
-                        yaxis_title='Объем продаж',
-                        hovermode='x unified',
-                        legend=dict(
-                            orientation="h",
-                            yanchor="bottom",
-                            y=1.02,
-                            xanchor="right",
-                            x=1
-                        )
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                with col2:
-                    st.markdown("**Детали прогноза**")
-                    st.dataframe(
-                        forecast_df[forecast_df['Тип'] == 'Прогноз'][['Дата', 'Объем продаж']]
-                        .rename(columns={'Объем продаж': 'Прогноз'})
-                        .style.format({'Прогноз': '{:,.0f}'}),
-                        hide_index=True
-                    )
-            
-            st.subheader("Рекомендации")
-            recommendations = generate_recommendations(filtered_df)
-            for rec in recommendations:
-                st.markdown(f"📌 {rec}")
-        
-        # Экспорт данных
-        st.download_button(
-            label="Скачать данные (CSV)",
-            data=filtered_df.to_csv(index=False).encode('utf-8'),
-            file_name="sales_data.csv",
-            mime="text/csv"
+            st.markdown("### Динамика продаж по локациям")
+            fig = px.line(
+                filtered_df.groupby(['Местоположение', pd.Grouper(key='Дата', freq='W-MON')])['Объем продаж'].sum().reset_index(),
+                x='Дата',
+                y='Объем продаж',
+                color='Местоположение',
+                title='Недельная динамика продаж по локациям',
+                markers=True,
+                line_shape="spline"
+            )
+                   fig.update_xaxes(tickformat="%d %b", dtick="M1")
+        fig.update_layout(
+            hovermode="x unified",
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            font=dict(color='black'),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
         )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with tab4:
+        st.subheader("Прогноз продаж на 30 дней")
+        forecast_df, forecast_error = make_forecast(filtered_df)
+        
+        if forecast_error:
+            st.warning(forecast_error)
+        else:
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                fig = go.Figure()
+                
+                # Фактические данные
+                fig.add_trace(go.Scatter(
+                    x=forecast_df[forecast_df['Тип'] == 'Факт']['Дата'],
+                    y=forecast_df[forecast_df['Тип'] == 'Факт']['Объем продаж'],
+                    name='Факт',
+                    line=dict(color='blue')
+                )
+                
+                # Прогноз
+                fig.add_trace(go.Scatter(
+                    x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
+                    y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'],
+                    name='Прогноз',
+                    line=dict(color='red', dash='dot')
+                )
+                
+                # Доверительный интервал
+                fig.add_trace(go.Scatter(
+                    x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
+                    y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'] * 1.2,
+                    fill=None,
+                    mode='lines',
+                    line=dict(width=0),
+                    showlegend=False
+                ))
+                
+                fig.add_trace(go.Scatter(
+                    x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
+                    y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'] * 0.8,
+                    fill='tonexty',
+                    mode='lines',
+                    line=dict(width=0),
+                    fillcolor='rgba(255,0,0,0.1)',
+                    name='Доверительный интервал'
+                ))
+                
+                fig.update_layout(
+                    title='Прогноз продаж с учетом сезонности',
+                    xaxis_title='Дата',
+                    yaxis_title='Объем продаж',
+                    hovermode='x unified',
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    font=dict(color='black'),
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="right",
+                        x=1
+                    )
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                st.markdown("**Детали прогноза**")
+                st.dataframe(
+                    forecast_df[forecast_df['Тип'] == 'Прогноз'][['Дата', 'Объем продаж']]
+                    .rename(columns={'Объем продаж': 'Прогноз'})
+                    .style.format({'Прогноз': '{:,.0f}'}),
+                    hide_index=True
+                )
+        
+        st.subheader("Рекомендации")
+        recommendations = generate_recommendations(filtered_df)
+        for rec in recommendations:
+            st.markdown(f"📌 {rec}")
+    
+    # Создание и скачивание PDF отчета
+    pdf = create_pdf_report(df, forecast_df, recommendations, filtered_df)
+    pdf_output = pdf.output(dest='S').encode('latin-1')
+    st.download_button(
+        label="📥 Скачать отчет (PDF)",
+        data=pdf_output,
+        file_name="sales_report.pdf",
+        mime="application/pdf"
+    )
 
+    # Экспорт данных
+    st.download_button(
+        label="📄 Скачать данные (CSV)",
+        data=filtered_df.to_csv(index=False).encode('utf-8'),
+        file_name="sales_data.csv",
+        mime="text/csv"
+    )
