@@ -210,18 +210,18 @@ def create_pdf_report(df, forecast_df, recommendations, filtered_df):
         pdf.cell(200, 10, txt="Прогноз продаж", ln=1)
         
         fig = go.Figure()
-        fig.add_trace(go.Scatter()
+        fig.add_trace(go.Scatter(
             x=forecast_df[forecast_df['Тип'] == 'Факт']['Дата'],
             y=forecast_df[forecast_df['Тип'] == 'Факт']['Объем продаж'],
             name='Факт',
             line=dict(color='blue')
-        )
-        fig.add_trace(go.Scatter()
+        ))
+        fig.add_trace(go.Scatter(
             x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
             y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'],
             name='Прогноз',
             line=dict(color='red', dash='dot')
-        )
+        ))
         img_bytes = fig.to_image(format="png")
         pdf.image(BytesIO(img_bytes), x=10, w=190)
         pdf.ln(5)
