@@ -16,6 +16,49 @@ st.set_page_config(
     layout="wide"
 )
 
+# Настройка темы
+def set_white_theme():
+    white_theme = {
+        "backgroundColor": "#FFFFFF",
+        "secondaryBackgroundColor": "#F0F2F6",
+        "textColor": "#31333F",
+        "font": "sans serif"
+    }
+    
+    # Применяем настройки темы
+    st.markdown(
+        f"""
+        <style>
+            .stApp {{
+                background-color: {white_theme["backgroundColor"]};
+                color: {white_theme["textColor"]};
+            }}
+            .css-1d391kg, .css-1v3fvcr {{
+                background-color: {white_theme["secondaryBackgroundColor"]} !important;
+            }}
+            .st-bb, .st-at, .st-ae, .st-af, .st-ag, .st-ah, .st-ai, .st-aj, .st-ak, .st-al, .st-am, .st-an, .st-ao, .st-ap, .st-aq, .st-ar, .st-as {{
+                color: {white_theme["textColor"]} !important;
+            }}
+            .css-1aumxhk {{
+                color: {white_theme["textColor"]};
+                font-family: {white_theme["font"]};
+            }}
+            .css-10trblm {{
+                color: {white_theme["textColor"]};
+            }}
+            .st-cn, .st-co, .st-cp {{
+                color: {white_theme["textColor"]} !important;
+            }}
+            .st-bh, .st-bi, .st-bj, .st-bk, .st-bl, .st-bm, .st-bn, .st-bo, .st-bp, .st-bq, .st-br, .st-bs, .st-bt, .st-bu, .st-bv, .st-bw, .st-bx, .st-by, .st-bz {{
+                color: {white_theme["textColor"]} !important;
+            }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+set_white_theme()
+
 # Функция загрузки данных
 @st.cache_data
 def load_and_analyze_data(file):
@@ -192,10 +235,16 @@ if uploaded_file:
                 x='Дата',
                 y='Объем продаж',
                 title='Динамика продаж',
-                labels={'Объем продаж': 'Объем', 'Дата': 'Дата'}
+                labels={'Объем продаж': 'Объем', 'Дата': 'Дата'},
+                color_discrete_sequence=['#1f77b4']  # Синий цвет для графиков
             )
             fig.update_xaxes(tickformat="%d %b", dtick="M1")
-            fig.update_layout(hovermode="x unified")
+            fig.update_layout(
+                hovermode="x unified",
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                font=dict(color='black')
+            )
             st.plotly_chart(fig, use_container_width=True)
             
             st.dataframe(
@@ -211,7 +260,13 @@ if uploaded_file:
                     filtered_df.groupby('Вид продукта')['Объем продаж'].sum().reset_index(),
                     x='Вид продукта',
                     y='Объем продаж',
-                    title='Продажи по продуктам'
+                    title='Продажи по продуктам',
+                    color_discrete_sequence=['#1f77b4']
+                )
+                fig.update_layout(
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    font=dict(color='black')
                 )
                 st.plotly_chart(fig, use_container_width=True)
             
@@ -227,6 +282,11 @@ if uploaded_file:
                     color='Вид продукта',
                     title='Цена vs Объем продаж'
                 )
+                fig.update_layout(
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    font=dict(color='black')
+                )
                 st.plotly_chart(fig, use_container_width=True)
         
         with tab3:
@@ -238,6 +298,11 @@ if uploaded_file:
                     values='Выручка',
                     title='Распределение выручки'
                 )
+                fig.update_layout(
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    font=dict(color='black')
+                )
                 st.plotly_chart(fig, use_container_width=True)
             
             with col2:
@@ -247,6 +312,11 @@ if uploaded_file:
                     y='Объем продаж',
                     color='Местоположение',
                     title='Динамика по локациям'
+                )
+                fig.update_layout(
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    font=dict(color='black')
                 )
                 st.plotly_chart(fig, use_container_width=True)
         
@@ -266,7 +336,7 @@ if uploaded_file:
                         x=forecast_df[forecast_df['Тип'] == 'Факт']['Дата'],
                         y=forecast_df[forecast_df['Тип'] == 'Факт']['Объем продаж'],
                         name='Факт',
-                        line=dict(color='blue')
+                        line=dict(color='#1f77b4')  # Синий
                     ))
                     
                     # Прогноз
@@ -274,7 +344,7 @@ if uploaded_file:
                         x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
                         y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'],
                         name='Прогноз',
-                        line=dict(color='red', dash='dot')
+                        line=dict(color='#d62728', dash='dot')  # Красный
                     ))
                     
                     # Доверительный интервал
@@ -293,7 +363,7 @@ if uploaded_file:
                         fill='tonexty',
                         mode='lines',
                         line=dict(width=0),
-                        fillcolor='rgba(255,0,0,0.1)',
+                        fillcolor='rgba(214,39,40,0.1)',
                         name='Доверительный интервал'
                     ))
                     
@@ -302,6 +372,9 @@ if uploaded_file:
                         xaxis_title='Дата',
                         yaxis_title='Объем продаж',
                         hovermode='x unified',
+                        plot_bgcolor='white',
+                        paper_bgcolor='white',
+                        font=dict(color='black'),
                         legend=dict(
                             orientation="h",
                             yanchor="bottom",
