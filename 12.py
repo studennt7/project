@@ -476,7 +476,7 @@ if uploaded_file:
                         y=forecast_df[forecast_df['Тип'] == 'Факт']['Объем продаж'],
                         name='Факт',
                         line=dict(color='blue')
-                    )
+                    ))
                     
                     # Прогноз
                     fig.add_trace(go.Scatter(
