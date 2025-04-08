@@ -8,6 +8,7 @@ from statsmodels.tsa.seasonal import seasonal_decompose
 from datetime import timedelta
 import warnings
 from fpdf import FPDF
+from io import BytesIO
 import base64
 warnings.filterwarnings('ignore')
 
@@ -416,7 +417,7 @@ if uploaded_file:
                 st.warning(forecast_error)
             else:
                 col1, col2 = st.columns([2, 1])
-                with col1:
+                                with col1:
                     fig = go.Figure()
                     
                     # Фактические данные
@@ -452,7 +453,7 @@ if uploaded_file:
                         mode='lines',
                         line=dict(width=0),
                         fillcolor='rgba(214,39,40,0.1)',
-                        name='Доверительный интервал'
+                        name='Доверительный интервал (±20%)'
                     ))
                     
                     fig.update_layout(
@@ -474,23 +475,73 @@ if uploaded_file:
                     st.plotly_chart(fig, use_container_width=True)
                 
                 with col2:
-                    st.markdown("**Детали прогноза**")
+                    st.markdown("""
+                    **Детали прогноза:**
+                    - Метод: Тройное экспоненциальное сглаживание (Holt-Winters)
+                    - Учтены: тренд, сезонность (7 дней)
+                    - Доверительный интервал: ±20%
+                    """)
+                    
+                    forecast_data = forecast_df[forecast_df['Тип'] == 'Прогноз'][['Дата', 'Объем продаж']]
+                    forecast_data = forecast_data.rename(columns={'Объем продаж': 'Прогноз'})
+                    forecast_data['Дата'] = forecast_data['Дата'].dt.strftime('%Y-%m-%d')
+                    
                     st.dataframe(
-                        forecast_df[forecast_df['Тип'] == 'Прогноз'][['Дата', 'Объем продаж']]
-                        .rename(columns={'Объем продаж': 'Прогноз'})
-                        .style.format({'Прогноз': '{:,.0f}'}),
+                        forecast_data.style.format({'Прогноз': '{:,.0f}'}),
+                        height=600,
                         hide_index=True
                     )
             
-            st.subheader("Рекомендации")
+            st.subheader("Рекомендации на основе анализа")
             recommendations = generate_recommendations(filtered_df)
-            for rec in recommendations:
-                st.markdown(f"📌 {rec}")
+            
+            for i, rec in enumerate(recommendations, 1):
+                st.markdown(f"{i}. {rec}")
+            
+            # Кнопка экспорта в PDF
+            if st.button("Сформировать PDF-отчет"):
+                pdf_data = create_pdf(df, filtered_df, forecast_df, recommendations)
+                
+                st.download_button(
+                    label="Скачать PDF-отчет",
+                    data=pdf_data,
+                    file_name="sales_report.pdf",
+                    mime="application/pdf"
+                )
         
-        # Экспорт данных
-        st.download_button(
-            label="Скачать данные (CSV)",
-            data=filtered_df.to_csv(index=False).encode('utf-8'),
-            file_name="sales_data.csv",
-            mime="text/csv"
-        )
+        # Дополнительные опции экспорта
+        with st.expander("Дополнительные опции экспорта"):
+            st.markdown("""
+            ### Экспорт данных в различных форматах
+            Выберите нужный формат для выгрузки данных:
+            """)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Экспорт в CSV
+                st.download_button(
+                    label="Скачать данные (CSV)",
+                    data=filtered_df.to_csv(index=False).encode('utf-8'),
+                    file_name="sales_data.csv",
+                    mime="text/csv",
+                    help="Скачать отфильтрованные данные в формате CSV"
+                )
+            
+            with col2:
+                # Экспорт в Excel
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    filtered_df.to_excel(writer, index=False, sheet_name='Sales Data')
+                    if forecast_df is not None:
+                        forecast_df.to_excel(writer, index=False, sheet_name='Forecast')
+                output.seek(0)
+                
+                st.download_button(
+                    label="Скачать данные (Excel)",
+                    data=output,
+                    file_name="sales_data.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help="Скачать данные и прогноз в формате Excel"
+                )
+                    
