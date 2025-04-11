@@ -429,13 +429,28 @@ if uploaded_file:
                     ))
                     
                     # Прогноз
-                    fig.add_trace(go.Scatter(
-                        x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
-                        y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'],
-                        name='Прогноз',
-                        line=dict(color='#d62728', dash='dot')  # Красный
-                    ))
-                    
+                   fig = px.line(
+                    forecast_df,
+                    x='Дата',
+                    y='Объем продаж',
+                    color='Тип',
+                    title='Прогноз продаж на 30 дней',
+                    color_discrete_map={'Факт': '#1f77b4', 'Прогноз': '#ff7f0e'}
+                )
+                fig.update_layout(
+                    hovermode="x unified",
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    font=dict(color='black')
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+                st.dataframe(
+                    forecast_df[forecast_df['Тип'] == 'Прогноз'][['Дата', 'Объем продаж']]
+                    .set_index('Дата')
+                    .style.format({'Объем продаж': '{:,.0f}'}),
+                    use_container_width=True
+                )
                     # Доверительный интервал
                     fig.add_trace(go.Scatter(
                         x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
@@ -495,19 +510,14 @@ if uploaded_file:
             st.subheader("Рекомендации на основе анализа")
             recommendations = generate_recommendations(filtered_df)
             
-            for i, rec in enumerate(recommendations, 1):
-                st.markdown(f"{i}. {rec}")
-            
-            # Кнопка экспорта в PDF
-            if st.button("Сформировать PDF-отчет"):
-                pdf_data = create_pdf(df, filtered_df, forecast_df, recommendations)
-                
-                st.download_button(
-                    label="Скачать PDF-отчет",
-                    data=pdf_data,
-                    file_name="sales_report.pdf",
-                    mime="application/pdf"
-                )
+            for rec in recommendations:
+            st.write(f"📌 {rec}")
+        
+        # Генерация PDF
+        pdf_data = create_pdf(df, filtered_df, forecast_df, recommendations)
+        b64 = base64.b64encode(pdf_data).decode()
+        href = f'<a href="data:application/octet-stream;base64,{b64}" download="sales_report.pdf">📄 Скачать отчет в PDF</a>'
+        st.markdown(href, unsafe_allow_html=True)
         
         # Дополнительные опции экспорта
         with st.expander("Дополнительные опции экспорта"):
