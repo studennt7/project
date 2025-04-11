@@ -417,7 +417,7 @@ if uploaded_file:
                 st.warning(forecast_error)
             else:
                 col1, col2 = st.columns([2, 1])
-                                with col1:
+                with col1:
                     fig = go.Figure()
                     
                     # Фактические данные
