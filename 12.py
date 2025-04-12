@@ -428,7 +428,20 @@ if st.sidebar.button("Создать PDF отчет"):
     with st.spinner("Формирование отчета..."):
         pdf_path = create_pdf_report(
             filtered_df,
-            kpi_text,
+            try:
+                total_sales = filtered_df['Объем продаж'].sum()
+                avg_daily_sales = filtered_df.groupby('Дата')['Объем продаж'].sum().mean()
+                top_product = filtered_df.groupby('Товар')['Объем продаж'].sum().idxmax()
+
+                kpi_text = f"""
+                📊 Ключевые показатели (KPI):
+
+                - Общий объем продаж: {total_sales:,.0f} руб.
+                - Средняя выручка в день: {avg_daily_sales:,.0f} руб.
+                - Самый продаваемый товар: {top_product}
+                """
+                except Exception as e:
+                    kpi_text = "Ошибка при расчете KPI: " + str(e)
             figures_for_pdf,
             recommendations
         )
