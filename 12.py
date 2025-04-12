@@ -84,143 +84,39 @@ def make_forecast(df, periods=30):
 def generate_recommendations(df):
     recommendations = []
     
-    # 1. Анализ сезонности
     try:
         daily_sales = df.groupby('Дата')['Объем продаж'].sum()
         decomposition = seasonal_decompose(daily_sales, period=7)
         
         if decomposition.seasonal.std() > (daily_sales.mean() * 0.1):
-            # Находим лучший и худший дни недели
-            weekday_sales = df.groupby(df['Дата'].dt.dayofweek)['Объем продаж'].sum()
-            best_day = weekday_sales.idxmax()
-            worst_day = weekday_sales.idxmin()
-            days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье']
-            
             recommendations.append(
-                f"🔍 **Сезонность**: Выявлена недельная сезонность. "
-                f"Лучший день - {days[best_day]} (+{weekday_sales[best_day]/weekday_sales.mean():.0%} к среднему), "
-                f"худший - {days[worst_day]} ({weekday_sales[worst_day]/weekday_sales.mean():.0%}). "
-                "Оптимизируйте запасы и персонал под эти паттерны."
+                "🔍 Выявлена недельная сезонность. Оптимизируйте запасы и персонал соответственно."
             )
-    except Exception as e:
-        st.warning(f"Ошибка анализа сезонности: {str(e)}")
+    except:
+        pass
     
-    # 2. Анализ продуктов
-    product_analysis = df.groupby('Вид продукта').agg({
-        'Объем продаж': 'sum',
-        'Выручка': 'sum',
-        'Сумма': 'mean'
-    }).sort_values('Выручка', ascending=False)
+    top_products = df.groupby('Вид продукта')['Объем продаж'].sum().nlargest(3)
+    if len(top_products) > 0:
+        recommendations.append(
+            f"🏆 Топ-3 продукта: {', '.join(top_products.index)}. Увеличьте их наличие."
+        )
     
-    if len(product_analysis) > 0:
-        # Топ-3 продукта
-        top_products = product_analysis.head(3)
-        rec_text = "🏆 **Топ-3 продукта**: "
-        for i, (product, row) in enumerate(top_products.iterrows(), 1):
-            rec_text += (f"{i}. {product} (продажи: {row['Объем продаж']:,.0f} ед., "
-                       f"выручка: {row['Выручка']:,.0f} руб., "
-                       f"ср. цена: {row['Сумма']:,.2f} руб.)")
-            if i < 3: rec_text += "; "
-        
-        # Аутсайдеры
-        bottom_products = product_analysis.tail(3)
-        rec_text += ". ❌ **Аутсайдеры**: "
-        for i, (product, row) in enumerate(bottom_products.iterrows(), 1):
-            rec_text += f"{product} ({row['Объем продаж']:,.0f} ед.)"
-            if i < 3: rec_text += ", "
-        rec_text += " - рассмотрите снятие с ассортимента или акции."
-        
-        recommendations.append(rec_text)
-    
-    # 3. Анализ покупателей
-    customer_stats = df.groupby('Тип покупателя').agg({
-        'Выручка': ['sum', 'count'],
-        'Сумма': 'mean'
-    })
-    
+    customer_stats = df.groupby('Тип покупателя')['Выручка'].agg(['sum', 'count'])
     if len(customer_stats) > 1:
-        customer_stats.columns = ['Выручка', 'Кол-во покупок', 'Средний чек']
-        customer_stats['Доля выручки'] = customer_stats['Выручка'] / customer_stats['Выручка'].sum()
-        
-        best_customer = customer_stats.sort_values('Выручка', ascending=False).iloc[0]
-        worst_customer = customer_stats.sort_values('Выручка').iloc[0]
-        
+        best_customer = customer_stats['sum'].idxmax()
         recommendations.append(
-            f"👥 **Клиентский анализ**: Основная выручка ({best_customer['Доля выручки']:.0%}) от '{best_customer.name}' "
-            f"(ср.чек: {best_customer['Средний чек']:,.0f} руб., {best_customer['Кол-во покупок']} покупок). "
-            f"Слабая группа: '{worst_customer.name}' ({worst_customer['Доля выручки']:.0%} выручки). "
-            "Разработайте программу лояльности для ключевых клиентов и спецпредложения для слабых групп."
+            f"👥 Основная выручка от '{best_customer}'. Разработайте программу лояльности."
         )
     
-    # 4. Анализ локаций
-    location_stats = df.groupby('Местоположение').agg({
-        'Выручка': 'sum',
-        'Объем продаж': 'sum',
-        'Сумма': 'mean'
-    })
-    
+    location_stats = df.groupby('Местоположение')['Выручка'].sum()
     if len(location_stats) > 1:
-        location_stats['Доля выручки'] = location_stats['Выручка'] / location_stats['Выручка'].sum()
-        best_loc = location_stats.sort_values('Выручка', ascending=False).iloc[0]
-        worst_loc = location_stats.sort_values('Выручка').iloc[0]
-        
+        best_loc = location_stats.idxmax()
+        worst_loc = location_stats.idxmin()
         recommendations.append(
-            f"📍 **География продаж**: Лучшая локация - {best_loc.name} "
-            f"({best_loc['Доля выручки']:.0%} выручки, {best_loc['Объем продаж']:,.0f} ед., "
-            f"ср.цена: {best_loc['Сумма']:,.2f} руб.). "
-            f"Проблемная: {worst_loc.name} ({worst_loc['Доля выручки']:.0%}). "
-            "Проведите анализ причин различий (трафик, ассортимент, цены)."
+            f"📍 Лучшая локация: {best_loc}, проблемная: {worst_loc}. Изучите причины."
         )
     
-    # 5. Анализ динамики
-    try:
-        monthly_growth = df.groupby(pd.Grouper(key='Дата', freq='M'))['Выручка'].sum().pct_change()
-        if len(monthly_growth) > 1:
-            avg_growth = monthly_growth.mean()
-            last_growth = monthly_growth[-1]
-            
-            trend = "📈 рост" if last_growth > 0 else "📉 снижение"
-            recommendation = ("Увеличьте маркетинговые усилия." if last_growth < 0 
-                            else "Закрепите успешную стратегию.")
-            
-            recommendations.append(
-                f"📅 **Динамика**: Последний месячный {trend} на {abs(last_growth):.0%} "
-                f"(средний {avg_growth:.0%}). {recommendation}"
-            )
-    except:
-        pass
-    
-    # 6. Анализ эффективности ценообразования
-    try:
-        price_elasticity = df.groupby('Вид продукта').apply(
-            lambda x: x['Объем продаж'].corr(x['Сумма'])
-        ).mean()
-        
-        if price_elasticity < -0.3:
-            recommendations.append(
-                "💰 **Ценовая чувствительность**: Высокая эластичность спроса (-{:.2f}). "
-                "Рассмотрите стратегию динамического ценообразования и акции.".format(abs(price_elasticity))
-        elif price_elasticity > 0.1:
-            recommendations.append(
-                "💰 **Премиум-сегмент**: Положительная корреляция цены и спроса (+{:.2f}). "
-                "Возможен переход в премиум-сегмент с повышением цен.".format(price_elasticity))
-    except:
-        pass
-    
-    # 7. Анализ упущенной выгоды
-    zero_sales_days = df[df['Объем продаж'] == 0]
-    if not zero_sales_days.empty:
-        avg_daily_sales = df['Объем продаж'].mean()
-        lost_profit = len(zero_sales_days['Дата'].unique()) * avg_daily_sales * df['Сумма'].mean()
-        recommendations.append(
-            f"⚠️ **Упущенная выручка**: {len(zero_sales_days['Дата'].unique()} дней без продаж. "
-            f"Потенциальные потери: ~{lost_profit:,.0f} руб. Проверьте логистику и работу точек продаж."
-        )
-    
-    return recommendations if recommendations else [
-        "🔎 Недостаточно данных для комплексного анализа. Рекомендуем собрать больше данных."
-    ]
-
+    return recommendations if recommendations else ["🔎 Недостаточно данных для рекомендаций"]
 
 # Функция для создания PDF отчета
 def create_pdf_report(df, forecast_df, recommendations, filtered_df):
