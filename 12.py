@@ -429,20 +429,20 @@ if uploaded_file:
                     ))
                     
                     # Прогноз
-                   fig = px.line(
+                    fig = px.line(
                     forecast_df,
                     x='Дата',
                     y='Объем продаж',
                     color='Тип',
                     title='Прогноз продаж на 30 дней',
                     color_discrete_map={'Факт': '#1f77b4', 'Прогноз': '#ff7f0e'}
-                )
-                fig.update_layout(
+                    )
+                    fig.update_layout(
                     hovermode="x unified",
                     plot_bgcolor='white',
                     paper_bgcolor='white',
                     font=dict(color='black')
-                )
+                    )
                 st.plotly_chart(fig, use_container_width=True)
 
                 st.dataframe(
@@ -450,7 +450,7 @@ if uploaded_file:
                     .set_index('Дата')
                     .style.format({'Объем продаж': '{:,.0f}'}),
                     use_container_width=True
-                )
+                    )
                     # Доверительный интервал
                     fig.add_trace(go.Scatter(
                         x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
