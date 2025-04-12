@@ -385,15 +385,15 @@ if uploaded_file:
                 fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
                 st.plotly_chart(fig, use_container_width=True)
             
-                st.markdown("### Динамика продаж по локациям")
-                fig = px.line(
-                    filtered_df.groupby(['Местоположение', pd.Grouper(key='Дата', freq='W-MON')])['Объем продаж'].sum().reset_index(),
-                    x='Дата',
-                    y='Объем продаж',
-                    color='Местоположение',
-                    title='Недельная динамика продаж по локациям',
-                    markers=True
-                )
+            st.markdown("### Динамика продаж по локациям")
+            fig = px.line(
+                filtered_df.groupby(['Местоположение', pd.Grouper(key='Дата', freq='W-MON')])['Объем продаж'].sum().reset_index(),
+                x='Дата',
+                y='Объем продаж',
+                color='Местоположение',
+                title='Недельная динамика продаж по локациям',
+                markers=True
+            )
                 fig.update_xaxes(tickformat="%d %b", dtick="M1")
                 fig.update_layout(hovermode="x unified")
                 st.plotly_chart(fig, use_container_width=True)
