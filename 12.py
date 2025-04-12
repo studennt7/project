@@ -7,6 +7,8 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from statsmodels.tsa.seasonal import seasonal_decompose
 from datetime import timedelta
 import warnings
+import os
+import tempfile
 from fpdf import FPDF
 import base64
 from io import BytesIO
@@ -477,24 +479,24 @@ if uploaded_file:
         )
         
         # PDF
-        if st.sidebar.button("Создать PDF отчет"):
-            with st.spinner("Формирование отчета..."):
-                pdf_path = create_pdf_report(
-                    filtered_df,
-                    kpi_text,
-                    figures_for_pdf,
-                    recommendations
-                )
-                
-                with open(pdf_path, "rb") as f:
-                    pdf_bytes = f.read()
-                
-                st.sidebar.download_button(
-                    label="Скачать PDF",
-                    data=pdf_bytes,
-                    file_name="sales_report.pdf",
-                    mime="application/pdf"
-                )
-                
-                os.unlink(pdf_path)
-                
+        
+if st.sidebar.button("Создать PDF отчет"):
+    with st.spinner("Формирование отчета..."):
+        pdf_path = create_pdf_report(
+            filtered_df,
+            kpi_text,
+            figures_for_pdf,
+            recommendations
+        )
+
+        with open(pdf_path, "rb") as f:
+            pdf_bytes = f.read()
+
+        st.sidebar.download_button(
+            label="📄 Скачать PDF отчет",
+            data=pdf_bytes,
+            file_name="sales_report.pdf",
+            mime="application/pdf"
+        )
+
+        os.unlink(pdf_path)
