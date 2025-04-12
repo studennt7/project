@@ -421,24 +421,33 @@ if uploaded_file:
                         showlegend=False
                     ))
                     
-                    fig6.add_trace(go.Scatter(
+                    fig.add_trace(go.Scatter(
                         x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
-                        y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'] * 0.85,
+                        y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'] * 0.8,
                         fill='tonexty',
                         mode='lines',
                         line=dict(width=0),
-                        fillcolor='rgba(231, 76, 60, 0.1)',
-                        name='Доверительный интервал'
+                        fillcolor='rgba(214,39,40,0.1)',
+                        name='Доверительный интервал (±20%)'
                     ))
                     
-                    fig6.update_layout(
+                    fig.update_layout(
                         title='Прогноз продаж с учетом сезонности',
                         xaxis_title='Дата',
                         yaxis_title='Объем продаж',
-                        hovermode='x unified'
+                        hovermode='x unified',
+                        plot_bgcolor='white',
+                        paper_bgcolor='white',
+                        font=dict(color='black'),
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="right",
+                            x=1
+                        )
                     )
-                    st.plotly_chart(fig6, use_container_width=True)
-                    figures_for_pdf.append(fig6)
+                    st.plotly_chart(fig, use_container_width=True)
                 
                 with col2:
                     st.markdown("**Детали прогноза**")
