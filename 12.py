@@ -10,6 +10,8 @@ import warnings
 from fpdf import FPDF
 from io import BytesIO
 import base64
+import tempfile
+import os
 warnings.filterwarnings('ignore')
 
 # Настройки страницы
@@ -167,64 +169,35 @@ def create_pdf_report(df, forecast_df, recommendations, filtered_df):
     pdf.cell(200, 10, txt=f"Количество уникальных продуктов: {unique_products}", ln=1)
     pdf.ln(10)
     
-    # Графики (сохраняем временные изображения)
+    # Вместо графиков добавляем таблицы с данными
     pdf.set_font("Arial", 'B', 14)
-    pdf.cell(200, 10, txt="Визуализация данных", ln=1)
+    pdf.cell(200, 10, txt="Сводные данные", ln=1)
+    pdf.set_font("Arial", size=10)
     
-    # Динамика продаж
-    fig = px.line(
-        filtered_df.groupby('Дата').agg({'Объем продаж': 'sum'}).reset_index(),
-        x='Дата',
-        y='Объем продаж',
-        title='Динамика продаж'
-    )
-    img_bytes = fig.to_image(format="png")
-    pdf.image(BytesIO(img_bytes), x=10, w=190)
+    # Таблица продаж по продуктам
+    pdf.cell(200, 10, txt="Продажи по продуктам:", ln=1)
+    product_sales = filtered_df.groupby('Вид продукта')['Объем продаж'].sum().reset_index()
+    for _, row in product_sales.iterrows():
+        pdf.cell(200, 8, txt=f"{row['Вид продукта']}: {row['Объем продаж']:,.0f} ед.", ln=1)
     pdf.ln(5)
     
-    # Продукты
-    fig = px.bar(
-        filtered_df.groupby('Вид продукта')['Объем продаж'].sum().reset_index(),
-        x='Вид продукта',
-        y='Объем продаж',
-        title='Продажи по продуктам'
-    )
-    img_bytes = fig.to_image(format="png")
-    pdf.image(BytesIO(img_bytes), x=10, w=190)
-    pdf.ln(5)
-    
-    # Локации
-    fig = px.bar(
-        filtered_df.groupby('Местоположение')['Выручка'].sum().reset_index(),
-        x='Местоположение',
-        y='Выручка',
-        title='Выручка по локациям'
-    )
-    img_bytes = fig.to_image(format="png")
-    pdf.image(BytesIO(img_bytes), x=10, w=190)
+    # Таблица выручки по локациям
+    pdf.cell(200, 10, txt="Выручка по локациям:", ln=1)
+    location_revenue = filtered_df.groupby('Местоположение')['Выручка'].sum().reset_index()
+    for _, row in location_revenue.iterrows():
+        pdf.cell(200, 8, txt=f"{row['Местоположение']}: {row['Выручка']:,.2f} руб.", ln=1)
     pdf.ln(10)
     
-    # Прогноз
+    # Прогноз (если есть)
     if forecast_df is not None:
         pdf.set_font("Arial", 'B', 14)
-        pdf.cell(200, 10, txt="Прогноз продаж", ln=1)
+        pdf.cell(200, 10, txt="Прогноз продаж на 30 дней:", ln=1)
+        pdf.set_font("Arial", size=10)
         
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=forecast_df[forecast_df['Тип'] == 'Факт']['Дата'],
-            y=forecast_df[forecast_df['Тип'] == 'Факт']['Объем продаж'],
-            name='Факт',
-            line=dict(color='blue')
-        ))
-        fig.add_trace(go.Scatter(
-            x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
-            y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'],
-            name='Прогноз',
-            line=dict(color='red', dash='dot')
-        ))
-        img_bytes = fig.to_image(format="png")
-        pdf.image(BytesIO(img_bytes), x=10, w=190)
-        pdf.ln(5)
+        forecast_data = forecast_df[forecast_df['Тип'] == 'Прогноз']
+        for _, row in forecast_data.iterrows():
+            pdf.cell(200, 8, txt=f"{row['Дата'].strftime('%d.%m.%Y')}: {row['Объем продаж']:,.0f} ед.", ln=1)
+        pdf.ln(10)
     
     # Рекомендации
     pdf.set_font("Arial", 'B', 14)
@@ -232,7 +205,7 @@ def create_pdf_report(df, forecast_df, recommendations, filtered_df):
     pdf.set_font("Arial", size=12)
     
     for rec in recommendations:
-        pdf.multi_cell(0, 10, txt=rec)
+        pdf.multi_cell(0, 10, txt=rec.replace('🔍', '').replace('🏆', '').replace('👥', '').replace('📍', '').strip())
     
     return pdf
 
@@ -386,7 +359,7 @@ if uploaded_file:
                     paper_bgcolor='white',
                     font=dict(color='black')
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True
         
         with tab3:
             st.markdown("### Анализ продаж по локациям")
