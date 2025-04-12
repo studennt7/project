@@ -394,9 +394,9 @@ if uploaded_file:
                 title='Недельная динамика продаж по локациям',
                 markers=True
             )
-                fig.update_xaxes(tickformat="%d %b", dtick="M1")
-                fig.update_layout(hovermode="x unified")
-                st.plotly_chart(fig, use_container_width=True)
+            fig.update_xaxes(tickformat="%d %b", dtick="M1")
+            fig.update_layout(hovermode="x unified")
+            st.plotly_chart(fig, use_container_width=True)
         
         with tab4:
             st.subheader("Прогноз продаж на 30 дней")
