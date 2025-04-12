@@ -121,101 +121,45 @@ def generate_recommendations(df):
     return recommendations if recommendations else ["🔎 Недостаточно данных для рекомендаций"]
 
 # Функция для создания PDF отчета
-def create_pdf_report(df, forecast_df, recommendations, filtered_df):
+# Функция генерации PDF отчета
+def create_pdf_report(dataframe, kpi_text, figures, recommendations):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-    
+
     # Заголовок
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, txt="Аналитический отчет по продажам", ln=1, align='C')
+    pdf.cell(0, 10, "Отчет по продажам", ln=True, align='C')
     pdf.ln(10)
-    
-    # Основные метрики
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(200, 10, txt="Ключевые метрики", ln=1)
-    pdf.set_font("Arial", size=12)
-    
-    total_sales = df['Объем продаж'].sum()
-    total_revenue = df['Выручка'].sum()
-    avg_price = df['Сумма'].mean()
-    unique_products = df['Вид продукта'].nunique()
-    
-    pdf.cell(200, 10, txt=f"Общий объем продаж: {total_sales:,.0f}", ln=1)
-    pdf.cell(200, 10, txt=f"Общая выручка: {total_revenue:,.2f} руб.", ln=1)
-    pdf.cell(200, 10, txt=f"Средний чек: {avg_price:.2f} руб.", ln=1)
-    pdf.cell(200, 10, txt=f"Количество уникальных продуктов: {unique_products}", ln=1)
-    pdf.ln(10)
-    
-    # Графики (сохраняем временные изображения)
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(200, 10, txt="Визуализация данных", ln=1)
-    
-    # Динамика продаж
-    fig = px.line(
-        filtered_df.groupby('Дата').agg({'Объем продаж': 'sum'}).reset_index(),
-        x='Дата',
-        y='Объем продаж',
-        title='Динамика продаж'
-    )
-    img_bytes = fig.to_image(format="png")
-    pdf.image(BytesIO(img_bytes), x=10, w=190)
-    pdf.ln(5)
-    
-    # Продукты
-    fig = px.bar(
-        filtered_df.groupby('Вид продукта')['Объем продаж'].sum().reset_index(),
-        x='Вид продукта',
-        y='Объем продаж',
-        title='Продажи по продуктам'
-    )
-    img_bytes = fig.to_image(format="png")
-    pdf.image(BytesIO(img_bytes), x=10, w=190)
-    pdf.ln(5)
-    
-    # Локации
-    fig = px.bar(
-        filtered_df.groupby('Местоположение')['Выручка'].sum().reset_index(),
-        x='Местоположение',
-        y='Выручка',
-        title='Выручка по локациям'
-    )
-    img_bytes = fig.to_image(format="png")
-    pdf.image(BytesIO(img_bytes), x=10, w=190)
-    pdf.ln(10)
-    
-    # Прогноз
-    if forecast_df is not None:
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(200, 10, txt="Прогноз продаж", ln=1)
-        
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=forecast_df[forecast_df['Тип'] == 'Факт']['Дата'],
-            y=forecast_df[forecast_df['Тип'] == 'Факт']['Объем продаж'],
-            name='Факт',
-            line=dict(color='blue')
-        ))
-        fig.add_trace(go.Scatter(
-            x=forecast_df[forecast_df['Тип'] == 'Прогноз']['Дата'],
-            y=forecast_df[forecast_df['Тип'] == 'Прогноз']['Объем продаж'],
-            name='Прогноз',
-            line=dict(color='red', dash='dot')
-        ))
-        img_bytes = fig.to_image(format="png")
-        pdf.image(BytesIO(img_bytes), x=10, w=190)
-        pdf.ln(5)
-    
-    # Рекомендации
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(200, 10, txt="Рекомендации", ln=1)
-    pdf.set_font("Arial", size=12)
-    
-    for rec in recommendations:
-        pdf.multi_cell(0, 10, txt=rec)
-    
-    return pdf
 
+    # KPI текст
+    pdf.set_font("Arial", size=12)
+    for line in kpi_text.strip().split('\n'):
+        pdf.multi_cell(0, 10, line)
+    pdf.ln(5)
+
+    # Сводка по данным
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, "Пример данных:", ln=True)
+    pdf.set_font("Arial", size=12)
+    preview_df = dataframe.head(10)
+    for index, row in preview_df.iterrows():
+        row_text = ", ".join(str(item) for item in row)
+        pdf.multi_cell(0, 8, row_text)
+    pdf.ln(5)
+
+    # Рекомендации
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, "Рекомендации:", ln=True)
+    pdf.set_font("Arial", size=12)
+    for rec in recommendations:
+        pdf.multi_cell(0, 8, f"- {rec}")
+    pdf.ln(5)
+
+    # Сохраняем во временный файл
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmpfile:
+        pdf.output(tmpfile.name)
+        return tmpfile.name
 # Интерфейс приложения
 st.title("📈 Sales-smart")
 
