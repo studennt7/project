@@ -323,7 +323,13 @@ if uploaded_file:
                     filtered_df.groupby('Вид продукта')['Объем продаж'].sum().reset_index(),
                     x='Вид продукта',
                     y='Объем продаж',
-                    title='Продажи по продуктам'
+                    title='Продажи по продуктам',
+                    color_discrete_sequence=['#1f77b4']
+                )
+                fig.update_layout(
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    font=dict(color='black')
                 )
                 st.plotly_chart(fig, use_container_width=True)
             
@@ -338,6 +344,11 @@ if uploaded_file:
                     size='Объем продаж',
                     color='Вид продукта',
                     title='Цена vs Объем продаж'
+                )
+                fig.update_layout(
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    font=dict(color='black')
                 )
                 st.plotly_chart(fig, use_container_width=True)
         
