@@ -324,7 +324,8 @@ if uploaded_file:
                     x='Вид продукта',
                     y='Объем продаж',
                     title='Продажи по продуктам',
-                    color_discrete_sequence=['#1f77b4']
+                    color='Вид продукта',
+                    text_auto=True
                 )
                 fig.update_layout(
                     plot_bgcolor='white',
@@ -343,7 +344,8 @@ if uploaded_file:
                     y='Объем продаж',
                     size='Объем продаж',
                     color='Вид продукта',
-                    title='Цена vs Объем продаж'
+                    title='Цена vs Объем продаж',
+                    hover_name='Вид продукта'
                 )
                 fig.update_layout(
                     plot_bgcolor='white',
