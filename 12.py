@@ -361,14 +361,28 @@ if uploaded_file:
                 st.plotly_chart(fig, use_container_width=True)
             
             with col2:
-                fig = px.bar(
-                    filtered_df.groupby(['Местоположение', 'Вид продукта'])['Объем продаж'].sum().reset_index(),
-                    x='Местоположение',
+                # Улучшенный график динамики по локациям
+                loc_df = filtered_df.groupby(['Местоположение', 'Дата'])['Объем продаж'].sum().reset_index()
+                
+                fig = px.area(
+                    loc_df,
+                    x='Дата',
                     y='Объем продаж',
-                    color='Вид продукта',
-                    title='Распределение продаж по продуктам и локациям',
-                    barmode='stack'
+                    color='Местоположение',
+                    title='Динамика продаж по локациям',
+                    facet_col='Местоположение',
+                    facet_col_wrap=2,
+                    height=600
                 )
+                
+                fig.update_layout(
+                    plot_bgcolor='white',
+                    paper_bgcolor='white',
+                    font=dict(color='black'),
+                    showlegend=False
+                )
+                
+                fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
                 st.plotly_chart(fig, use_container_width=True)
             
             st.markdown("### Динамика продаж по локациям")
